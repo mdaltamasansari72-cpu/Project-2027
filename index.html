@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mira Bhayandar Flyover - 3D Transition Model</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #87CEEB; }
+        
+        /* Input Panel Styling */
+        #ui-panel { position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 250px; z-index: 10; }
+        .input-group { margin-bottom: 12px; }
+        .input-group label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333; }
+        .input-group input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #0056b3; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #004494; }
+
+        /* Coordinates Panel Styling */
+        #coords-panel { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); width: 250px; max-height: 70vh; overflow-y: auto; z-index: 10; }
+        #coords-panel h3 { margin-top: 0; font-size: 16px; color: #333; text-align: center; border-bottom: 2px solid #0056b3; padding-bottom: 5px; }
+        #coords-list { list-style-type: none; padding: 0; margin: 0; font-size: 14px; color: #444; }
+        #coords-list li { padding: 5px 0; border-bottom: 1px dashed #ccc; }
+
+        /* Footer Styling */
+        #footer { position: absolute; bottom: 10px; width: 100%; text-align: center; color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); z-index: 10; pointer-events: none; }
+    </style>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <!-- User Input Panel -->
+    <div id="ui-panel">
+        <h3 style="margin-top:0; color:#0056b3;">Road Parameters</h3>
+        <div class="input-group">
+            <label>Total Road Length (m)</label>
+            <input type="number" id="totalLength" value="800">
+        </div>
+        <div class="input-group">
+            <label>Transition Length (m)</label>
+            <input type="number" id="transLength" value="140">
+        </div>
+        <div class="input-group">
+            <label>Start Width (m) / First Width</label>
+            <input type="number" id="startWidth" value="14">
+        </div>
+        <div class="input-group">
+            <label>End Width (m) / Second Width</label>
+            <input type="number" id="endWidth" value="7">
+        </div>
+        <div class="input-group">
+            <label>Start Lanes to Final Lanes</label>
+            <input type="text" id="lanes" value="4 to 2" placeholder="e.g., 4 to 2">
+        </div>
+        <button onclick="generateModel()">Generate 3D Model</button>
+    </div>
+
+    <!-- Coordinates Display Panel -->
+    <div id="coords-panel">
+        <h3>Transition Coordinates</h3>
+        <ul id="coords-list">
+            <!-- Coordinates will be injected here dynamically -->
+        </ul>
+    </div>
+
+    <!-- Footer for Credits -->
+    <div id="footer">
+        Credits to developers (Altamas and Fawwaz)
+    </div>
+
+    <script>
+        // --- 1. Basic Three.js Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(100, 200, 50);
+        scene.add(dirLight);
+
+        let roadMesh = null; // Variable to store current road
+
+        // --- 2. Function to Generate 3D Model & Coordinates ---
+        function generateModel() {
+            // Get values from UI
+            const totalLen = parseFloat(document.getElementById('totalLength').value);
+            const transLen = parseFloat(document.getElementById('transLength').value);
+            const w1 = parseFloat(document.getElementById('startWidth').value);
+            const w2 = parseFloat(document.getElementById('endWidth').value);
+
+            // Validation to avoid errors
+            if (transLen > totalLen) {
+                alert("Transition length cannot be greater than Total Road Length!");
+                return;
+            }
+
+            // Remove old road if exists
+            if (roadMesh) scene.remove(roadMesh);
+
+            // Calculate section lengths (assuming transition happens in the middle of the road)
+            const straightLenStart = (totalLen - transLen) / 2;
+            const straightLenEnd = totalLen - transLen - straightLenStart;
+
+            // Create Geometry manually using vertices
+            const geometry = new THREE.BufferGeometry();
+            
+            // Z-axis points
+            const z0 = 0; // Start of road
+            const z1 = straightLenStart; // Start of transition
+            const z2 = straightLenStart + transLen; // End of transition
+            const z3 = totalLen; // End of road
+
+            // X-axis points (Width divided by 2 to center the road)
+            const hw1 = w1 / 2;
+            const hw2 = w2 / 2;
+
+            // Define vertices for the 3 segments of the road (2 triangles per quad)
+            const vertices = new Float32Array([
+                // Segment 1: Start Straight Road
+                -hw1, 0, z0,   hw1, 0, z0,   -hw1, 0, z1,
+                hw1, 0, z0,    hw1, 0, z1,   -hw1, 0, z1,
+
+                // Segment 2: Transition Area (Width changes from w1 to w2)
+                -hw1, 0, z1,   hw1, 0, z1,   -hw2, 0, z2,
+                hw1, 0, z1,    hw2, 0, z2,   -hw2, 0, z2,
+
+                // Segment 3: End Straight Road
+                -hw2, 0, z2,   hw2, 0, z2,   -hw2, 0, z3,
+                hw2, 0, z2,    hw2, 0, z3,   -hw2, 0, z3
+            ]);
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.computeVertexNormals();
+
+            // Material for the road (dark grey asphalt color)
+            const material = new THREE.MeshLambertMaterial({ color: 0x333333, side: THREE.DoubleSide });
+            roadMesh = new THREE.Mesh(geometry, material);
+            scene.add(roadMesh);
+
+            // Position camera to see the road
+            camera.position.set(0, 100, -50);
+            controls.target.set(0, 0, totalLen / 2);
+            controls.update();
+
+            // --- 3. Calculate and Display Coordinates ---
+            calculateTransitionCoordinates(transLen, w1, w2);
+        }
+
+        // --- 4. Logic for Coordinates Every 20 Meters ---
+        function calculateTransitionCoordinates(length, startW, endW) {
+            const listElement = document.getElementById('coords-list');
+            listElement.innerHTML = ''; // Clear old data
+
+            // Loop starting from 0 to transition length with a step of 20 meters
+            for (let dist = 0; dist <= length; dist += 20) {
+                // Linear Interpolation formula: Current = Start - (Start - End) * (Distance / Total_Length)
+                let currentWidth = startW - ((startW - endW) * (dist / length));
+                
+                // Ensure the last coordinate is exactly the end length even if it doesn't divide perfectly by 20
+                if (dist > length) dist = length; 
+
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${dist}m</strong> ➔ Width: <strong>${currentWidth.toFixed(2)}m</strong>`;
+                listElement.appendChild(li);
+            }
+
+            // If length is not perfectly divisible by 20 (e.g., 150m), show the exact final endpoint
+            if (length % 20 !== 0) {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${length}m</strong> ➔ Width: <strong>${endW.toFixed(2)}m</strong> (End)`;
+                listElement.appendChild(li);
+            }
+        }
+
+        // --- 5. Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Handle Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize on load
+        generateModel();
+        animate();
+    </script>
+</body>
+</html>

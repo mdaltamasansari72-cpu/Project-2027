@@ -1,0 +1,2630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Mira-Bhayandar Bridge - 3D Transition & Curve Studio</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Orbit Controls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .coordinate-value {
+            font-family: monospace;
+            color: #67e8f9;
+        }
+
+        .station-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr;
+            gap: 6px;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 6px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .station-row:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden">
+
+<!-- HEADER -->
+<header class="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5 sticky top-0 z-50 shadow-xl">
+
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-3">
+
+        <div class="flex items-center gap-3">
+
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+
+                <svg class="w-6 h-6 text-white"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+
+                    <path stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7">
+                    </path>
+
+                </svg>
+
+            </div>
+
+            <div>
+                <h1 class="text-base sm:text-lg font-bold text-cyan-400">
+                    Mira-Bhayandar Bridge 3D Studio
+                </h1>
+
+                <p class="text-xs text-slate-400">
+                    Actual Angle + Radius + 4 Lane to 2 Lane Transition
+                </p>
+            </div>
+
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 text-xs">
+
+            <span class="bg-cyan-950/80 text-cyan-300 px-3 py-1.5 rounded-full border border-cyan-800/50 font-mono">
+                W(s) Transition
+            </span>
+
+            <span id="header-angle"
+                  class="bg-blue-950/80 text-blue-300 px-3 py-1.5 rounded-full border border-blue-800/50 font-mono">
+                Angle: 25°
+            </span>
+
+            <span id="header-radius"
+                  class="bg-indigo-950/80 text-indigo-300 px-3 py-1.5 rounded-full border border-indigo-800/50 font-mono">
+                Radius: 300 m
+            </span>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+<!-- MAIN -->
+<main class="max-w-7xl w-full mx-auto p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- 3D AREA -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+
+        <!-- 3D VIEW -->
+        <div class="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl relative h-[500px] sm:h-[650px]">
+
+            <div id="canvas-container"
+                 class="w-full h-full cursor-grab active:cursor-grabbing">
+            </div>
+
+
+            <!-- CONTROL BAR -->
+            <div class="absolute top-4 left-4 right-4 flex flex-wrap gap-2 bg-slate-950/90 backdrop-blur-md p-3 rounded-2xl border border-slate-800 z-10">
+
+                <button onclick="generateRoad()"
+                        class="px-4 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500">
+                    Generate 3D Road
+                </button>
+
+                <button onclick="setCameraView('driver')"
+                        id="btn-driver"
+                        class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 border border-slate-700">
+                    Driver View
+                </button>
+
+                <button onclick="setCameraView('top')"
+                        id="btn-top"
+                        class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 border border-slate-700">
+                    Top View
+                </button>
+
+                <button onclick="resetCamera()"
+                        id="btn-orbit"
+                        class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 border border-slate-700">
+                    Orbit / Reset
+                </button>
+
+            </div>
+
+
+            <!-- LIVE COORDINATES -->
+            <div class="absolute bottom-4 left-4 bg-slate-950/95 backdrop-blur-md px-4 py-3 rounded-2xl border border-slate-800 shadow-xl text-xs">
+
+                <div class="font-bold text-cyan-400 mb-2">
+                    LIVE ROAD COORDINATES
+                </div>
+
+                <div class="grid grid-cols-2 gap-x-5 gap-y-1 font-mono">
+
+                    <div>
+                        Station:
+                        <span id="live-station" class="coordinate-value">
+                            0.00 m
+                        </span>
+                    </div>
+
+                    <div>
+                        Angle:
+                        <span id="live-angle" class="coordinate-value">
+                            0.00°
+                        </span>
+                    </div>
+
+                    <div>
+                        X:
+                        <span id="live-x" class="coordinate-value">
+                            0.00
+                        </span>
+                    </div>
+
+                    <div>
+                        Y:
+                        <span id="live-y" class="coordinate-value">
+                            0.00
+                        </span>
+                    </div>
+
+                    <div>
+                        Z:
+                        <span id="live-z" class="coordinate-value">
+                            0.00
+                        </span>
+                    </div>
+
+                    <div>
+                        Width:
+                        <span id="live-width" class="coordinate-value">
+                            14.00 m
+                        </span>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- MODEL STATISTICS -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl">
+
+            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-4">
+                Model Geometry Information
+            </h3>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                    <div class="text-slate-500 text-[10px]">
+                        INITIAL WIDTH
+                    </div>
+
+                    <div id="stat-w1"
+                         class="text-cyan-400 font-bold text-sm">
+                        14.00 m
+                    </div>
+                </div>
+
+
+                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+
+                    <div class="text-slate-500 text-[10px]">
+                        FINAL WIDTH
+                    </div>
+
+                    <div id="stat-w2"
+                         class="text-cyan-400 font-bold text-sm">
+                        7.00 m
+                    </div>
+
+                </div>
+
+
+                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+
+                    <div class="text-slate-500 text-[10px]">
+                        CURVE ARC LENGTH
+                    </div>
+
+                    <div id="stat-arc"
+                         class="text-cyan-400 font-bold text-sm">
+                        130.90 m
+                    </div>
+
+                </div>
+
+
+                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800">
+
+                    <div class="text-slate-500 text-[10px]">
+                        ACTUAL TURN
+                    </div>
+
+                    <div id="stat-angle"
+                         class="text-cyan-400 font-bold text-sm">
+                        25.00°
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- RIGHT CONTROL PANEL -->
+    <div class="lg:col-span-4 flex flex-col gap-5">
+
+
+        <!-- PARAMETERS -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl">
+
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-5">
+
+                <h2 class="text-sm font-bold uppercase tracking-wider">
+                    Road Parameters
+                </h2>
+
+                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-1 rounded-full border border-emerald-800">
+                    LIVE
+                </span>
+
+            </div>
+
+
+            <div class="space-y-4">
+
+                <!-- ROAD LENGTH -->
+                <div>
+
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                        Total Road Length (m)
+                    </label>
+
+                    <input type="number"
+                           id="in-road-length"
+                           value="850"
+                           min="100"
+                           step="10"
+                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-mono">
+
+                </div>
+
+
+                <!-- WIDTH -->
+                <div class="grid grid-cols-2 gap-3">
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Starting Width W₁
+                        </label>
+
+                        <input type="number"
+                               id="in-w1"
+                               value="14"
+                               min="2"
+                               step="0.5"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Final Width W₂
+                        </label>
+
+                        <input type="number"
+                               id="in-w2"
+                               value="7"
+                               min="2"
+                               step="0.5"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+                </div>
+
+
+                <!-- LANES -->
+                <div class="grid grid-cols-2 gap-3">
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Starting Lanes
+                        </label>
+
+                        <input type="number"
+                               id="in-start-lanes"
+                               value="4"
+                               min="1"
+                               max="8"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Final Lanes
+                        </label>
+
+                        <input type="number"
+                               id="in-final-lanes"
+                               value="2"
+                               min="1"
+                               max="8"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+                </div>
+
+
+                <!-- TRANSITION -->
+                <div>
+
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                        Transition Length (m)
+                    </label>
+
+                    <input type="number"
+                           id="in-transition-l"
+                           value="140"
+                           min="10"
+                           step="10"
+                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                </div>
+
+
+                <!-- RADIUS + ANGLE -->
+                <div class="grid grid-cols-2 gap-3">
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Curve Radius (m)
+                        </label>
+
+                        <input type="number"
+                               id="in-radius"
+                               value="300"
+                               min="10"
+                               step="10"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+
+                    <div>
+
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Turn Angle (°)
+                        </label>
+
+                        <input type="number"
+                               id="in-angle"
+                               value="25"
+                               min="0"
+                               max="180"
+                               step="1"
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-mono">
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <button onclick="generateRoad()"
+                    class="w-full mt-5 py-3 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold rounded-2xl text-sm shadow-xl">
+
+                Generate / Check Angle
+
+            </button>
+
+        </div>
+
+
+        <!-- ANGLE INFORMATION -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+
+            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3">
+                Actual Curve Calculation
+            </h3>
+
+            <div class="bg-slate-950 rounded-2xl p-4 font-mono text-xs space-y-2">
+
+                <div>
+                    θ =
+                    <span id="calc-angle">25.00°</span>
+                </div>
+
+                <div>
+                    Radius =
+                    <span id="calc-radius">300.00 m</span>
+                </div>
+
+                <div>
+                    θ radians =
+                    <span id="calc-radians">0.436332</span>
+                </div>
+
+                <div>
+                    Arc Length = R × θ
+                </div>
+
+                <div class="text-cyan-400 font-bold">
+                    =
+                    <span id="calc-arc">130.90 m</span>
+                </div>
+
+            </div>
+
+            <div id="geometry-message"
+                 class="mt-3 text-[11px] text-slate-400 leading-relaxed">
+                The road is generated using the entered radius and angle.
+            </div>
+
+        </div>
+
+
+        <!-- COORDINATE TABLE -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+
+            <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3">
+                Important Road Coordinates
+            </h3>
+
+            <div class="text-[9px] text-slate-500 grid grid-cols-4 gap-2 border-b border-slate-700 pb-2">
+                <span>POINT</span>
+                <span>X</span>
+                <span>Y</span>
+                <span>Z</span>
+            </div>
+
+            <div id="coordinate-table">
+                <!-- Generated by JavaScript -->
+            </div>
+
+        </div>
+
+
+        <!-- TESTING GUIDE -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+
+            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">
+                Angle Testing
+            </h3>
+
+            <div class="text-xs text-slate-400 space-y-2">
+
+                <div>
+                    <span class="text-white font-bold">25°</span>
+                    → small turn
+                </div>
+
+                <div>
+                    <span class="text-white font-bold">35°</span>
+                    → medium turn
+                </div>
+
+                <div>
+                    <span class="text-white font-bold">45°</span>
+                    → 45 degree turn
+                </div>
+
+                <div>
+                    <span class="text-white font-bold">90°</span>
+                    → actual right-angle turn
+                </div>
+
+                <div>
+                    <span class="text-white font-bold">180°</span>
+                    → U-turn
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</main>
+
+
+<script>
+
+    let scene;
+    let camera;
+    let renderer;
+    let controls;
+
+    let roadGroup = null;
+
+    let roadPath = [];
+
+    let cameraMode = "orbit";
+
+    let clock = new THREE.Clock();
+
+    let currentModel = {
+        totalLength: 850,
+        w1: 14,
+        w2: 7,
+        transitionLength: 140,
+        radius: 300,
+        angleDeg: 25,
+        curveStart: 340,
+        arcLength: 130.8997
+    };
+
+
+    /*
+    ==========================================================
+    INITIALIZATION
+    ==========================================================
+    */
+
+    window.onload = function () {
+
+        init3D();
+
+        generateRoad();
+
+        window.addEventListener("resize", onWindowResize);
+
+    };
+
+
+    function init3D() {
+
+        const container =
+            document.getElementById("canvas-container");
+
+
+        scene = new THREE.Scene();
+
+        scene.background =
+            new THREE.Color(0x060913);
+
+        scene.fog =
+            new THREE.FogExp2(0x060913, 0.0012);
+
+
+        camera =
+            new THREE.PerspectiveCamera(
+                45,
+                container.clientWidth /
+                container.clientHeight,
+                0.1,
+                5000
+            );
+
+
+        camera.position.set(
+            0,
+            220,
+            380
+        );
+
+
+        renderer =
+            new THREE.WebGLRenderer({
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+
+
+        renderer.setSize(
+            container.clientWidth,
+            container.clientHeight
+        );
+
+
+        renderer.setPixelRatio(
+            Math.min(window.devicePixelRatio, 2)
+        );
+
+
+        renderer.shadowMap.enabled = true;
+
+        renderer.shadowMap.type =
+            THREE.PCFSoftShadowMap;
+
+
+        container.appendChild(
+            renderer.domElement
+        );
+
+
+        controls =
+            new THREE.OrbitControls(
+                camera,
+                renderer.domElement
+            );
+
+
+        controls.enableDamping = true;
+
+        controls.dampingFactor = 0.05;
+
+        controls.maxPolarAngle =
+            Math.PI / 2 - 0.02;
+
+
+        /*
+        LIGHTS
+        */
+
+        scene.add(
+            new THREE.AmbientLight(
+                0xdbeafe,
+                0.8
+            )
+        );
+
+
+        const sun =
+            new THREE.DirectionalLight(
+                0xffffff,
+                1.3
+            );
+
+        sun.position.set(
+            300,
+            500,
+            300
+        );
+
+        sun.castShadow = true;
+
+        scene.add(sun);
+
+
+        const hemi =
+            new THREE.HemisphereLight(
+                0x38bdf8,
+                0x1e1b4b,
+                0.6
+            );
+
+        scene.add(hemi);
+
+
+        /*
+        WATER
+        */
+
+        const waterGeometry =
+            new THREE.PlaneGeometry(
+                3000,
+                3000
+            );
+
+
+        const waterMaterial =
+            new THREE.MeshStandardMaterial({
+                color: 0x0369a1,
+                roughness: 0.15,
+                metalness: 0.7
+            });
+
+
+        const water =
+            new THREE.Mesh(
+                waterGeometry,
+                waterMaterial
+            );
+
+
+        water.rotation.x =
+            -Math.PI / 2;
+
+
+        water.position.y = -15;
+
+
+        scene.add(water);
+
+
+        animate();
+
+    }
+
+
+    /*
+    ==========================================================
+    ROAD GENERATOR
+    ==========================================================
+    */
+
+    function generateRoad() {
+
+        if (roadGroup) {
+
+            scene.remove(roadGroup);
+
+            roadGroup.traverse(
+                object => {
+
+                    if (object.geometry)
+                        object.geometry.dispose();
+
+                    if (object.material)
+                        object.material.dispose();
+
+                }
+            );
+
+        }
+
+
+        roadGroup =
+            new THREE.Group();
+
+
+        /*
+        READ INPUTS
+        */
+
+        const totalLen =
+            Math.max(
+                100,
+                parseFloat(
+                    document.getElementById(
+                        "in-road-length"
+                    ).value
+                ) || 850
+            );
+
+
+        const w1 =
+            Math.max(
+                2,
+                parseFloat(
+                    document.getElementById(
+                        "in-w1"
+                    ).value
+                ) || 14
+            );
+
+
+        const w2 =
+            Math.max(
+                2,
+                parseFloat(
+                    document.getElementById(
+                        "in-w2"
+                    ).value
+                ) || 7
+            );
+
+
+        const startLanes =
+            Math.max(
+                1,
+                parseInt(
+                    document.getElementById(
+                        "in-start-lanes"
+                    ).value
+                ) || 4
+            );
+
+
+        const finalLanes =
+            Math.max(
+                1,
+                parseInt(
+                    document.getElementById(
+                        "in-final-lanes"
+                    ).value
+                ) || 2
+            );
+
+
+        const transitionL =
+            Math.max(
+                10,
+                parseFloat(
+                    document.getElementById(
+                        "in-transition-l"
+                    ).value
+                ) || 140
+            );
+
+
+        const radius =
+            Math.max(
+                10,
+                parseFloat(
+                    document.getElementById(
+                        "in-radius"
+                    ).value
+                ) || 300
+            );
+
+
+        const angleDeg =
+            Math.max(
+                0,
+                Math.min(
+                    180,
+                    parseFloat(
+                        document.getElementById(
+                            "in-angle"
+                        ).value
+                    ) || 0
+                )
+            );
+
+
+        /*
+        ACTUAL CIRCULAR GEOMETRY
+
+        θ = angle in radians
+
+        Arc Length = Radius × θ
+        */
+
+        const angleRad =
+            THREE.MathUtils.degToRad(
+                angleDeg
+            );
+
+
+        const arcLength =
+            radius * angleRad;
+
+
+        /*
+        ROAD SECTIONS
+
+        Approach:
+        200 m
+
+        Transition:
+        user value
+
+        Curve:
+        R × θ
+
+        Remaining road:
+        whatever is left
+        */
+
+        const approachLength = 200;
+
+
+        const curveStart =
+            approachLength +
+            transitionL;
+
+
+        let requiredLength =
+            curveStart +
+            arcLength;
+
+
+        /*
+        If entered road length is too short,
+        automatically extend it so that the
+        requested curve can actually exist.
+        */
+
+        const actualTotalLength =
+            Math.max(
+                totalLen,
+                requiredLength + 1
+            );
+
+
+        const afterCurveLength =
+            Math.max(
+                0,
+                actualTotalLength -
+                requiredLength
+            );
+
+
+        currentModel = {
+
+            totalLength:
+                actualTotalLength,
+
+            w1,
+            w2,
+
+            transitionLength:
+                transitionL,
+
+            radius,
+
+            angleDeg,
+
+            curveStart,
+
+            arcLength,
+
+            approachLength,
+
+            afterCurveLength,
+
+            startLanes,
+
+            finalLanes
+
+        };
+
+
+        /*
+        UPDATE UI
+        */
+
+        updateStatistics();
+
+
+        /*
+        CREATE CENTERLINE
+        */
+
+        buildRoadPath();
+
+
+        /*
+        CREATE ROAD SURFACE
+        */
+
+        createRoadSurface();
+
+
+        /*
+        CREATE LANE MARKINGS
+        */
+
+        createLaneMarkings();
+
+
+        /*
+        CREATE BARRIERS
+        */
+
+        createBarriers();
+
+
+        /*
+        CREATE BRIDGE PILLARS
+        */
+
+        createPillars();
+
+
+        /*
+        ADD COORDINATE MARKERS
+        */
+
+        createCoordinateMarkers();
+
+
+        scene.add(roadGroup);
+
+
+        /*
+        UPDATE CAMERA
+        */
+
+        resetCamera();
+
+    }
+
+
+    /*
+    ==========================================================
+    CENTERLINE PATH
+    ==========================================================
+    */
+
+    function buildRoadPath() {
+
+        roadPath = [];
+
+
+        const model =
+            currentModel;
+
+
+        const samples =
+            420;
+
+
+        /*
+        Road coordinate system:
+
+        X = horizontal
+
+        Y = elevation
+
+        Z = forward direction
+
+        Curve begins after:
+        approach + transition
+        */
+
+
+        for (
+            let i = 0;
+            i <= samples;
+            i++
+        ) {
+
+            const s =
+                (i / samples) *
+                model.totalLength;
+
+
+            let x = 0;
+
+            let z =
+                -model.totalLength / 2;
+
+            let heading = 0;
+
+
+            /*
+            --------------------------------------------------
+            SECTION 1
+            STRAIGHT APPROACH
+            --------------------------------------------------
+            */
+
+            if (
+                s <= model.approachLength
+            ) {
+
+                z += s;
+
+                heading = 0;
+
+            }
+
+
+            /*
+            --------------------------------------------------
+            SECTION 2
+            TRANSITION
+            --------------------------------------------------
+            */
+
+            else if (
+                s <= model.curveStart
+            ) {
+
+                z += s;
+
+                heading = 0;
+
+            }
+
+
+            /*
+            --------------------------------------------------
+            SECTION 3
+            ACTUAL CIRCULAR CURVE
+            --------------------------------------------------
+            */
+
+            else if (
+                s <=
+                model.curveStart +
+                model.arcLength
+            ) {
+
+                const ds =
+                    s -
+                    model.curveStart;
+
+
+                const phi =
+                    ds /
+                    model.radius;
+
+
+                /*
+                Circular arc:
+
+                x = R(1 - cos(phi))
+
+                z = z0 + R sin(phi)
+
+                This produces an actual
+                circular road curve.
+                */
+
+
+                const z0 =
+                    -model.totalLength / 2 +
+                    model.curveStart;
+
+
+                x =
+                    model.radius *
+                    (
+                        1 -
+                        Math.cos(phi)
+                    );
+
+
+                z =
+                    z0 +
+                    model.radius *
+                    Math.sin(phi);
+
+
+                heading =
+                    phi;
+
+            }
+
+
+            /*
+            --------------------------------------------------
+            SECTION 4
+            AFTER CURVE
+            --------------------------------------------------
+            */
+
+            else {
+
+                const endPhi =
+                    model.angleRad ||
+                    THREE.MathUtils.degToRad(
+                        model.angleDeg
+                    );
+
+
+                const curveEndX =
+                    model.radius *
+                    (
+                        1 -
+                        Math.cos(endPhi)
+                    );
+
+
+                const curveEndZ =
+                    -model.totalLength / 2 +
+                    model.curveStart +
+                    model.radius *
+                    Math.sin(endPhi);
+
+
+                const ds =
+                    s -
+                    (
+                        model.curveStart +
+                        model.arcLength
+                    );
+
+
+                x =
+                    curveEndX +
+                    Math.sin(endPhi) *
+                    ds;
+
+
+                z =
+                    curveEndZ +
+                    Math.cos(endPhi) *
+                    ds;
+
+
+                heading =
+                    endPhi;
+
+            }
+
+
+            /*
+            ELEVATION
+
+            Kept above water to represent
+            elevated bridge deck.
+            */
+
+            const y = 0;
+
+
+            roadPath.push({
+
+                s,
+                x,
+                y,
+                z,
+                heading
+
+            });
+
+        }
+
+    }
+
+
+    /*
+    ==========================================================
+    WIDTH FUNCTION
+    ==========================================================
+    */
+
+    function widthAtStation(s) {
+
+        const model =
+            currentModel;
+
+
+        const start =
+            model.approachLength;
+
+
+        const end =
+            model.curveStart;
+
+
+        if (s <= start)
+            return model.w1;
+
+
+        if (s >= end)
+            return model.w2;
+
+
+        const t =
+            (
+                s - start
+            ) /
+            model.transitionLength;
+
+
+        /*
+        Smooth parabolic transition
+
+        W(s) =
+        W2 +
+        (W1-W2)(1-t)^2
+        */
+
+        return (
+            model.w2 +
+            (
+                model.w1 -
+                model.w2
+            ) *
+            Math.pow(
+                1 - t,
+                2
+            )
+        );
+
+    }
+
+
+    /*
+    ==========================================================
+    GET PATH POINT
+    ==========================================================
+    */
+
+    function getPathPoint(s) {
+
+        if (!roadPath.length)
+            return {
+                x: 0,
+                y: 0,
+                z: 0,
+                heading: 0
+            };
+
+
+        const clamped =
+            Math.max(
+                0,
+                Math.min(
+                    currentModel.totalLength,
+                    s
+                )
+            );
+
+
+        const ratio =
+            clamped /
+            currentModel.totalLength;
+
+
+        const index =
+            ratio *
+            (
+                roadPath.length - 1
+            );
+
+
+        const i =
+            Math.floor(index);
+
+
+        const j =
+            Math.min(
+                i + 1,
+                roadPath.length - 1
+            );
+
+
+        const t =
+            index - i;
+
+
+        const a =
+            roadPath[i];
+
+
+        const b =
+            roadPath[j];
+
+
+        return {
+
+            x:
+                a.x +
+                (b.x - a.x) *
+                t,
+
+            y:
+                a.y +
+                (b.y - a.y) *
+                t,
+
+            z:
+                a.z +
+                (b.z - a.z) *
+                t,
+
+            heading:
+                a.heading +
+                (b.heading - a.heading) *
+                t
+
+        };
+
+    }
+
+
+    /*
+    ==========================================================
+    ROAD SURFACE
+    ==========================================================
+    */
+
+    function createRoadSurface() {
+
+        const segments =
+            roadPath.length - 1;
+
+
+        const vertices = [];
+
+        const indices = [];
+
+
+        let vertexIndex = 0;
+
+
+        for (
+            let i = 0;
+            i < roadPath.length;
+            i++
+        ) {
+
+            const p =
+                roadPath[i];
+
+
+            const width =
+                widthAtStation(
+                    p.s
+                );
+
+
+            /*
+            Perpendicular vector
+
+            heading 0:
+            left/right along X
+
+            During curve:
+            perpendicular follows
+            actual road direction.
+            */
+
+            const leftX =
+                Math.cos(
+                    p.heading
+                );
+
+
+            const leftZ =
+                -Math.sin(
+                    p.heading
+                );
+
+
+            const rightX =
+                -leftX;
+
+
+            const rightZ =
+                -leftZ;
+
+
+            const half =
+                width / 2;
+
+
+            vertices.push(
+
+                p.x +
+                leftX *
+                half,
+
+                p.y,
+
+                p.z +
+                leftZ *
+                half
+
+            );
+
+
+            vertices.push(
+
+                p.x +
+                rightX *
+                half,
+
+                p.y,
+
+                p.z +
+                rightZ *
+                half
+
+            );
+
+
+            if (i < segments) {
+
+                const a =
+                    vertexIndex;
+
+                const b =
+                    vertexIndex + 1;
+
+                const c =
+                    vertexIndex + 2;
+
+                const d =
+                    vertexIndex + 3;
+
+
+                indices.push(
+                    a,
+                    b,
+                    d,
+
+                    a,
+                    d,
+                    c
+                );
+
+            }
+
+
+            vertexIndex += 2;
+
+        }
+
+
+        const geometry =
+            new THREE.BufferGeometry();
+
+
+        geometry.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(
+                vertices,
+                3
+            )
+        );
+
+
+        geometry.setIndex(indices);
+
+
+        geometry.computeVertexNormals();
+
+
+        const material =
+            new THREE.MeshStandardMaterial({
+
+                color: 0x1e293b,
+
+                roughness: 0.85,
+
+                metalness: 0.1,
+
+                side:
+                    THREE.DoubleSide
+
+            });
+
+
+        const road =
+            new THREE.Mesh(
+                geometry,
+                material
+            );
+
+
+        road.receiveShadow = true;
+
+        roadGroup.add(road);
+
+    }
+
+
+    /*
+    ==========================================================
+    LANE MARKINGS
+    ==========================================================
+    */
+
+    function createLaneMarkings() {
+
+        const model =
+            currentModel;
+
+
+        const markerMaterial =
+            new THREE.MeshBasicMaterial({
+                color: 0xf8fafc
+            });
+
+
+        /*
+        Dashed center/lane lines.
+        */
+
+        const dashSpacing = 12;
+
+        const dashLength = 6;
+
+
+        for (
+            let s = 0;
+            s < model.totalLength;
+            s += dashSpacing
+        ) {
+
+            const p =
+                getPathPoint(
+                    s + dashSpacing / 2
+                );
+
+
+            const width =
+                widthAtStation(
+                    s
+                );
+
+
+            let lanes;
+
+
+            if (
+                s <
+                model.approachLength +
+                model.transitionLength / 2
+            ) {
+
+                lanes =
+                    model.startLanes;
+
+            } else {
+
+                lanes =
+                    model.finalLanes;
+
+            }
+
+
+            /*
+            For 4 → 2 transition,
+            gradually move lane positions
+            toward final positions.
+            */
+
+            const t =
+                Math.max(
+                    0,
+                    Math.min(
+                        1,
+                        (
+                            s -
+                            model.approachLength
+                        ) /
+                        model.transitionLength
+                    )
+                );
+
+
+            const effectiveLaneCount =
+                model.startLanes +
+                (
+                    model.finalLanes -
+                    model.startLanes
+                ) *
+                t;
+
+
+            const lineCount =
+                Math.max(
+                    1,
+                    Math.round(
+                        Math.max(
+                            effectiveLaneCount,
+                            lanes
+                        ) - 1
+                    )
+                );
+
+
+            for (
+                let lane = 1;
+                lane <= lineCount;
+                lane++
+            ) {
+
+                /*
+                Normalized lane position
+                from left edge.
+                */
+
+                const normalized =
+                    lane /
+                    (
+                        lineCount + 1
+                    );
+
+
+                /*
+                During transition,
+                lines visually converge.
+                */
+
+                const xOffset =
+                    (
+                        normalized -
+                        0.5
+                    ) *
+                    width *
+                    (
+                        1 -
+                        0.45 *
+                        t
+                    );
+
+
+                createRoadStripe(
+                    p,
+                    xOffset,
+                    dashLength,
+                    markerMaterial
+                );
+
+            }
+
+        }
+
+    }
+
+
+    function createRoadStripe(
+        p,
+        offset,
+        length,
+        material
+    ) {
+
+        const stripe =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    0.22,
+                    0.06,
+                    length
+                ),
+                material
+            );
+
+
+        stripe.position.set(
+            p.x,
+            0.08,
+            p.z
+        );
+
+
+        stripe.rotation.y =
+            p.heading;
+
+
+        /*
+        Offset stripe sideways
+        relative to road direction.
+        */
+
+        stripe.position.x +=
+            Math.cos(
+                p.heading
+            ) *
+            offset;
+
+
+        stripe.position.z +=
+            -Math.sin(
+                p.heading
+            ) *
+            offset;
+
+
+        roadGroup.add(stripe);
+
+    }
+
+
+    /*
+    ==========================================================
+    BARRIERS
+    ==========================================================
+    */
+
+    function createBarriers() {
+
+        const material =
+            new THREE.MeshStandardMaterial({
+                color: 0x64748b,
+                metalness: 0.4,
+                roughness: 0.6
+            });
+
+
+        const spacing = 8;
+
+
+        for (
+            let s = 0;
+            s < currentModel.totalLength;
+            s += spacing
+        ) {
+
+            const p =
+                getPathPoint(
+                    s + spacing / 2
+                );
+
+
+            const width =
+                widthAtStation(
+                    s
+                );
+
+
+            const half =
+                width / 2 +
+                0.35;
+
+
+            /*
+            Left barrier
+            */
+
+            createBarrierSegment(
+                p,
+                half,
+                material
+            );
+
+
+            /*
+            Right barrier
+            */
+
+            createBarrierSegment(
+                p,
+                -half,
+                material
+            );
+
+        }
+
+    }
+
+
+    function createBarrierSegment(
+        p,
+        offset,
+        material
+    ) {
+
+        const barrier =
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    0.5,
+                    1.0,
+                    8
+                ),
+                material
+            );
+
+
+        barrier.position.set(
+            p.x,
+            0.5,
+            p.z
+        );
+
+
+        barrier.rotation.y =
+            p.heading;
+
+
+        barrier.position.x +=
+            Math.cos(
+                p.heading
+            ) *
+            offset;
+
+
+        barrier.position.z +=
+            -Math.sin(
+                p.heading
+            ) *
+            offset;
+
+
+        roadGroup.add(
+            barrier
+        );
+
+    }
+
+
+    /*
+    ==========================================================
+    BRIDGE PILLARS
+    ==========================================================
+    */
+
+    function createPillars() {
+
+        const material =
+            new THREE.MeshStandardMaterial({
+                color: 0x475569,
+                roughness: 0.75
+            });
+
+
+        /*
+        Pillars every 40 m.
+        */
+
+        for (
+            let s = 220;
+            s <
+            currentModel.totalLength;
+            s += 40
+        ) {
+
+            const p =
+                getPathPoint(
+                    s
+                );
+
+
+            const pillar =
+                new THREE.Mesh(
+
+                    new THREE.CylinderGeometry(
+                        1.5,
+                        1.5,
+                        30,
+                        16
+                    ),
+
+                    material
+
+                );
+
+
+            pillar.position.set(
+                p.x,
+                -15,
+                p.z
+            );
+
+
+            roadGroup.add(
+                pillar
+            );
+
+        }
+
+    }
+
+
+    /*
+    ==========================================================
+    COORDINATE MARKERS
+    ==========================================================
+    */
+
+    function createCoordinateMarkers() {
+
+        const stations = [
+
+            {
+                name: "START",
+                s: 0
+            },
+
+            {
+                name: "TRANSITION START",
+                s:
+                    currentModel.approachLength
+            },
+
+            {
+                name: "TRANSITION END",
+                s:
+                    currentModel.curveStart
+            },
+
+            {
+                name: "CURVE END",
+                s:
+                    currentModel.curveStart +
+                    currentModel.arcLength
+            }
+
+        ];
+
+
+        const table =
+            document.getElementById(
+                "coordinate-table"
+            );
+
+
+        table.innerHTML = "";
+
+
+        stations.forEach(
+            station => {
+
+                const p =
+                    getPathPoint(
+                        station.s
+                    );
+
+
+                const row =
+                    document.createElement(
+                        "div"
+                    );
+
+
+                row.className =
+                    "station-row";
+
+
+                row.innerHTML = `
+
+                    <div class="text-cyan-400">
+                        ${station.name}
+                    </div>
+
+                    <div>
+                        X ${p.x.toFixed(2)}
+                    </div>
+
+                    <div>
+                        Y ${p.y.toFixed(2)}
+                    </div>
+
+                    <div>
+                        Z ${p.z.toFixed(2)}
+                    </div>
+
+                `;
+
+
+                table.appendChild(
+                    row
+                );
+
+            }
+        );
+
+
+        /*
+        Add angle-end information.
+        */
+
+        const end =
+            getPathPoint(
+                currentModel.curveStart +
+                currentModel.arcLength
+            );
+
+
+        const row =
+            document.createElement(
+                "div"
+            );
+
+
+        row.className =
+            "station-row";
+
+
+        row.innerHTML = `
+
+            <div class="text-amber-400">
+                ${currentModel.angleDeg.toFixed(0)}° END
+            </div>
+
+            <div>
+                X ${end.x.toFixed(2)}
+            </div>
+
+            <div>
+                Y ${end.y.toFixed(2)}
+            </div>
+
+            <div>
+                Z ${end.z.toFixed(2)}
+            </div>
+
+        `;
+
+
+        table.appendChild(row);
+
+    }
+
+
+    /*
+    ==========================================================
+    UI STATISTICS
+    ==========================================================
+    */
+
+    function updateStatistics() {
+
+        const m =
+            currentModel;
+
+
+        document.getElementById(
+            "stat-w1"
+        ).innerText =
+            m.w1.toFixed(2) +
+            " m";
+
+
+        document.getElementById(
+            "stat-w2"
+        ).innerText =
+            m.w2.toFixed(2) +
+            " m";
+
+
+        document.getElementById(
+            "stat-arc"
+        ).innerText =
+            m.arcLength.toFixed(2) +
+            " m";
+
+
+        document.getElementById(
+            "stat-angle"
+        ).innerText =
+            m.angleDeg.toFixed(2) +
+            "°";
+
+
+        document.getElementById(
+            "header-angle"
+        ).innerText =
+            "Angle: " +
+            m.angleDeg.toFixed(0) +
+            "°";
+
+
+        document.getElementById(
+            "header-radius"
+        ).innerText =
+            "Radius: " +
+            m.radius.toFixed(0) +
+            " m";
+
+
+        const radians =
+            THREE.MathUtils.degToRad(
+                m.angleDeg
+            );
+
+
+        document.getElementById(
+            "calc-angle"
+        ).innerText =
+            m.angleDeg.toFixed(2) +
+            "°";
+
+
+        document.getElementById(
+            "calc-radius"
+        ).innerText =
+            m.radius.toFixed(2) +
+            " m";
+
+
+        document.getElementById(
+            "calc-radians"
+        ).innerText =
+            radians.toFixed(6);
+
+
+        document.getElementById(
+            "calc-arc"
+        ).innerText =
+            m.arcLength.toFixed(2) +
+            " m";
+
+
+        let message =
+            "Actual circular geometry: " +
+            m.angleDeg.toFixed(2) +
+            "° turn using " +
+            m.radius.toFixed(2) +
+            " m radius.";
+
+
+        if (
+            m.totalLength >
+            parseFloat(
+                document.getElementById(
+                    "in-road-length"
+                ).value
+            )
+        ) {
+
+            message +=
+                " Total road length was automatically extended because the requested radius + angle requires more physical length.";
+
+        }
+
+
+        document.getElementById(
+            "geometry-message"
+        ).innerText =
+            message;
+
+    }
+
+
+    /*
+    ==========================================================
+    CAMERA
+    ==========================================================
+    */
+
+    function setCameraView(mode) {
+
+        cameraMode =
+            mode;
+
+
+        ["driver", "top", "orbit"]
+            .forEach(
+                m => {
+
+                    const btn =
+                        document.getElementById(
+                            "btn-" + m
+                        );
+
+
+                    if (!btn)
+                        return;
+
+
+                    if (m === mode) {
+
+                        btn.className =
+                            "px-3 py-2 text-xs font-semibold rounded-xl bg-cyan-600 text-white shadow-md";
+
+                    } else {
+
+                        btn.className =
+                            "px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 border border-slate-700";
+
+                    }
+
+                }
+            );
+
+
+        if (mode === "top") {
+
+            controls.enabled = false;
+
+
+            camera.position.set(
+                0,
+                750,
+                0
+            );
+
+
+            camera.lookAt(
+                0,
+                0,
+                0
+            );
+
+        }
+
+
+        if (mode === "driver") {
+
+            controls.enabled = false;
+
+        }
+
+
+        if (mode === "orbit") {
+
+            controls.enabled = true;
+
+        }
+
+    }
+
+
+    function resetCamera() {
+
+        cameraMode =
+            "orbit";
+
+
+        controls.enabled =
+            true;
+
+
+        /*
+        Calculate model center
+        */
+
+        const middle =
+            getPathPoint(
+                currentModel.totalLength /
+                2
+            );
+
+
+        camera.position.set(
+            middle.x - 280,
+            220,
+            middle.z + 280
+        );
+
+
+        controls.target.set(
+            middle.x,
+            0,
+            middle.z
+        );
+
+
+        controls.update();
+
+
+        ["driver", "top", "orbit"]
+            .forEach(
+                m => {
+
+                    const btn =
+                        document.getElementById(
+                            "btn-" + m
+                        );
+
+                    if (btn)
+                        btn.className =
+                            "px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800 border border-slate-700";
+
+                }
+            );
+
+
+        document.getElementById(
+            "btn-orbit"
+        ).className =
+            "px-3 py-2 text-xs font-semibold rounded-xl bg-cyan-600 text-white shadow-md";
+
+    }
+
+
+    /*
+    ==========================================================
+    DRIVER VIEW
+    ==========================================================
+    */
+
+    function updateDriverCamera() {
+
+        if (!roadPath.length)
+            return;
+
+
+        /*
+        Travel speed.
+        */
+
+        const speed =
+            25;
+
+
+        let s =
+            (
+                clock.getElapsedTime() *
+                speed
+            ) %
+            currentModel.totalLength;
+
+
+        const p =
+            getPathPoint(
+                s
+            );
+
+
+        const lookAhead =
+            Math.min(
+                currentModel.totalLength,
+                s + 30
+            );
+
+
+        const look =
+            getPathPoint(
+                lookAhead
+            );
+
+
+        /*
+        Driver camera slightly
+        above road.
+        */
+
+        camera.position.set(
+            p.x,
+            3.2,
+            p.z
+        );
+
+
+        camera.lookAt(
+            look.x,
+            2.5,
+            look.z
+        );
+
+
+        updateLiveCoordinates(
+            s,
+            p
+        );
+
+    }
+
+
+    /*
+    ==========================================================
+    LIVE COORDINATES
+    ==========================================================
+    */
+
+    function updateLiveCoordinates(
+        station,
+        p
+    ) {
+
+        const angle =
+            THREE.MathUtils.radToDeg(
+                p.heading
+            );
+
+
+        document.getElementById(
+            "live-station"
+        ).innerText =
+            station.toFixed(2) +
+            " m";
+
+
+        document.getElementById(
+            "live-angle"
+        ).innerText =
+            angle.toFixed(2) +
+            "°";
+
+
+        document.getElementById(
+            "live-x"
+        ).innerText =
+            p.x.toFixed(2);
+
+
+        document.getElementById(
+            "live-y"
+        ).innerText =
+            p.y.toFixed(2);
+
+
+        document.getElementById(
+            "live-z"
+        ).innerText =
+            p.z.toFixed(2);
+
+
+        document.getElementById(
+            "live-width"
+        ).innerText =
+            widthAtStation(
+                station
+            ).toFixed(2) +
+            " m";
+
+    }
+
+
+    /*
+    ==========================================================
+    ANIMATION
+    ==========================================================
+    */
+
+    function animate() {
+
+        requestAnimationFrame(
+            animate
+        );
+
+
+        if (
+            cameraMode ===
+            "driver"
+        ) {
+
+            updateDriverCamera();
+
+        } else {
+
+            controls.update();
+
+        }
+
+
+        renderer.render(
+            scene,
+            camera
+        );
+
+    }
+
+
+    /*
+    ==========================================================
+    RESIZE
+    ==========================================================
+    */
+
+    function onWindowResize() {
+
+        const container =
+            document.getElementById(
+                "canvas-container"
+            );
+
+
+        if (!container)
+            return;
+
+
+        camera.aspect =
+            container.clientWidth /
+            container.clientHeight;
+
+
+        camera.updateProjectionMatrix();
+
+
+        renderer.setSize(
+            container.clientWidth,
+            container.clientHeight
+        );
+
+    }
+
+</script>
+
+</body>
+</html>

@@ -8,7 +8,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
         body, html { width: 100%; height: 100%; overflow: hidden; background-color: #87ceeb; }
 
-        /* Canvas styling to ensure 3D view renders correctly */
+        /* Fullscreen Canvas for 3D Render */
         canvas { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
         #title-bar {
@@ -19,7 +19,7 @@
 
         /* Control Panel (Right) */
         #ui-panel {
-            position: absolute; top: 15px; right: 15px; width: 280px;
+            position: absolute; top: 15px; right: 15px; width: 290px;
             background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
             padding: 16px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             z-index: 100; max-height: calc(100vh - 50px); overflow-y: auto;
@@ -110,13 +110,11 @@
     <div id="footer">CREDITS TO DEVELOPERS (ALTAMAS AND FAWWAZ)</div>
 
     <script>
-        // --- 1. Procedural Asphalt Texture Generator ---
+        // --- 1. Procedural Asphalt & Concrete Texture Generators ---
         function createAsphaltTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 512; canvas.height = 512;
             const ctx = canvas.getContext('2d');
-
             ctx.fillStyle = '#222426';
             ctx.fillRect(0, 0, 512, 512);
 
@@ -130,10 +128,44 @@
             }
             ctx.putImageData(imgData, 0, 0);
 
+            // Fine cracks
+            ctx.strokeStyle = 'rgba(10, 10, 10, 0.4)';
+            ctx.lineWidth = 1;
+            for (let c = 0; c < 10; c++) {
+                ctx.beginPath();
+                let x = Math.random() * 512, y = Math.random() * 512;
+                ctx.moveTo(x, y);
+                for (let s = 0; s < 5; s++) {
+                    x += (Math.random() - 0.5) * 40;
+                    y += (Math.random() - 0.5) * 40;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(4, 40);
+            return texture;
+        }
+
+        function createConcreteTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#b0b3b5';
+            ctx.fillRect(0, 0, 256, 256);
+            const imgData = ctx.getImageData(0, 0, 256, 256);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const noise = (Math.random() - 0.5) * 15;
+                data[i] += noise; data[i+1] += noise; data[i+2] += noise;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
             return texture;
         }
 
@@ -156,30 +188,32 @@
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
         sunLight.position.set(150, 300, 100);
         sunLight.castShadow = true;
         scene.add(sunLight);
 
         // Ground below
-        const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+        const groundGeo = new THREE.PlaneGeometry(3000, 3000);
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x5b8a3e, roughness: 0.9 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -20;
+        ground.position.y = -22;
         scene.add(ground);
 
+        // Materials
         const asphaltTex = createAsphaltTexture();
+        const concreteTex = createConcreteTexture();
         const roadMaterial = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.8 });
-        const concreteMaterial = new THREE.MeshStandardMaterial({ color: 0xb0b3b5, roughness: 0.7 });
-        const steelMaterial = new THREE.MeshStandardMaterial({ color: 0x889098, metalness: 0.8, roughness: 0.3 });
+        const concreteMaterial = new THREE.MeshStandardMaterial({ map: concreteTex, color: 0xc4c7c9, roughness: 0.7 });
+        const steelMaterial = new THREE.MeshStandardMaterial({ color: 0x889098, metalness: 0.85, roughness: 0.25 });
         const whitePaint = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const yellowPaint = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
 
         let flyoverGroup = new THREE.Group();
         scene.add(flyoverGroup);
 
-        // --- 3. Generate 3D Flyover Model ---
+        // --- 3. Generate Full Detailed 3D Flyover Model ---
         function generateFlyoverModel() {
             const totalLen = parseFloat(document.getElementById('totalLength').value);
             const transLen = parseFloat(document.getElementById('transLength').value);
@@ -202,7 +236,7 @@
                 return w1 + (w2 - w1) * ratio;
             }
 
-            const numSegments = Math.ceil(totalLen / 4);
+            const numSegments = Math.ceil(totalLen / 2);
             const zStep = totalLen / numSegments;
 
             // Road Deck
@@ -231,60 +265,143 @@
             roadGeo.computeVertexNormals();
 
             const roadMesh = new THREE.Mesh(roadGeo, roadMaterial);
+            roadMesh.receiveShadow = true;
             flyoverGroup.add(roadMesh);
 
-            // Piers & Pillars
-            for (let z = 20; z < totalLen; z += 40) {
+            // Underside Soffit Deck
+            const deckThickness = 1.2;
+            const soffitPositions = [], soffitIndices = [];
+            for (let i = 0; i <= numSegments; i++) {
+                const z = i * zStep;
+                const w = getWidthAtZ(z);
+                const hw = w / 2;
+                soffitPositions.push(-hw + 0.3, -deckThickness, z);
+                soffitPositions.push(hw - 0.3, -deckThickness, z);
+
+                if (i < numSegments) {
+                    const r1 = i * 2, r2 = (i + 1) * 2;
+                    soffitIndices.push(r1, r2, r1 + 1);
+                    soffitIndices.push(r1 + 1, r2, r2 + 1);
+                }
+            }
+            const soffitGeo = new THREE.BufferGeometry();
+            soffitGeo.setAttribute('position', new THREE.Float32BufferAttribute(soffitPositions, 3));
+            soffitGeo.setIndex(soffitIndices);
+            soffitGeo.computeVertexNormals();
+            const soffitMesh = new THREE.Mesh(soffitGeo, concreteMaterial);
+            flyoverGroup.add(soffitMesh);
+
+            // Piers, Columns & Foundations
+            for (let z = 15; z < totalLen; z += 35) {
                 const w = getWidthAtZ(z);
                 const pierGroup = new THREE.Group();
                 pierGroup.position.set(0, 0, z);
 
-                const cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, 1.2, 3), concreteMaterial);
-                cap.position.y = -1.6;
+                // Pier Cap
+                const cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.85, 1.5, 3.5), concreteMaterial);
+                cap.position.y = -deckThickness - 0.75;
                 pierGroup.add(cap);
 
-                const colGeo = new THREE.CylinderGeometry(1, 1.2, 16, 12);
+                // Twin Columns
+                const colHeight = 18;
+                const colGeo = new THREE.CylinderGeometry(1.2, 1.4, colHeight, 16);
+                const colOffset = Math.min(w * 0.25, 4);
+
                 const col1 = new THREE.Mesh(colGeo, concreteMaterial);
-                col1.position.set(-w * 0.2, -10, 0);
+                col1.position.set(-colOffset, -deckThickness - 1.5 - colHeight / 2, 0);
                 pierGroup.add(col1);
 
                 const col2 = new THREE.Mesh(colGeo, concreteMaterial);
-                col2.position.set(w * 0.2, -10, 0);
+                col2.position.set(colOffset, -deckThickness - 1.5 - colHeight / 2, 0);
                 pierGroup.add(col2);
+
+                // Foundation Block
+                const fdn = new THREE.Mesh(new THREE.BoxGeometry(colOffset * 2 + 5, 2.5, 6), concreteMaterial);
+                fdn.position.y = -22 + 1.25;
+                pierGroup.add(fdn);
 
                 flyoverGroup.add(pierGroup);
             }
 
-            // Markings, Medians & Guardrails
+            // Road Markings, Medians & Guardrails Posts
             for (let i = 0; i <= numSegments; i++) {
                 const z = i * zStep;
                 const w = getWidthAtZ(z);
                 const hw = w / 2;
 
-                // Center Median
+                // Guardrail Steel Posts
+                if (i % 2 === 0) {
+                    [-hw, hw].forEach((xSide) => {
+                        const isLeft = xSide < 0;
+                        const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.9, 0.15), steelMaterial);
+                        post.position.set(xSide + (isLeft ? 0.2 : -0.2), 0.45, z);
+                        flyoverGroup.add(post);
+                    });
+                }
+
+                // Central Median (Black & White Striped)
                 if (i % 2 === 0 && i < numSegments) {
-                    const median = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, zStep * 2), whitePaint);
-                    median.position.set(0, 0.2, z + zStep);
+                    const isWhite = Math.floor(z / 3) % 2 === 0;
+                    const medianMat = isWhite ? whitePaint : new THREE.MeshBasicMaterial({ color: 0x111111 });
+                    const median = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.45, zStep * 2), medianMat);
+                    median.position.set(0, 0.225, z + zStep);
                     flyoverGroup.add(median);
                 }
 
-                // Yellow edge lines
-                const yGeo = new THREE.PlaneGeometry(0.12, zStep);
+                // Yellow Edge Lines
+                const yGeo = new THREE.PlaneGeometry(0.15, zStep + 0.05);
                 const y1 = new THREE.Mesh(yGeo, yellowPaint);
                 y1.rotation.x = -Math.PI / 2;
-                y1.position.set(-hw + 0.5, 0.01, z);
+                y1.position.set(-hw + 0.6, 0.01, z);
                 flyoverGroup.add(y1);
 
                 const y2 = new THREE.Mesh(yGeo, yellowPaint);
                 y2.rotation.x = -Math.PI / 2;
-                y2.position.set(hw - 0.5, 0.01, z);
+                y2.position.set(hw - 0.6, 0.01, z);
                 flyoverGroup.add(y2);
+
+                // White Dashed Lanes
+                const lanesVal = document.getElementById('lanes').value;
+                const lanesCount = parseInt(lanesVal.charAt(0)) || 4;
+                const halfLanes = lanesCount / 2;
+
+                if ((Math.floor(z) % 12) < 6) {
+                    for (let l = 1; l < halfLanes; l++) {
+                        const laneOffsetLeft = (-hw + 0.6) + (l * ((hw - 1.0) / halfLanes));
+                        const laneOffsetRight = (0.6) + (l * ((hw - 1.0) / halfLanes));
+                        const dashGeo = new THREE.PlaneGeometry(0.12, zStep + 0.05);
+
+                        const dash1 = new THREE.Mesh(dashGeo, whitePaint);
+                        dash1.rotation.x = -Math.PI / 2;
+                        dash1.position.set(laneOffsetLeft, 0.01, z);
+                        flyoverGroup.add(dash1);
+
+                        const dash2 = new THREE.Mesh(dashGeo, whitePaint);
+                        dash2.rotation.x = -Math.PI / 2;
+                        dash2.position.set(laneOffsetRight, 0.01, z);
+                        flyoverGroup.add(dash2);
+                    }
+                }
             }
 
-            // Update transition coordinates panel (0m to transLen)
+            // Continuous W-Beam Guardrails
+            [-1, 1].forEach((side) => {
+                const railPoints = [];
+                for (let i = 0; i <= numSegments; i++) {
+                    const z = i * zStep;
+                    const w = getWidthAtZ(z);
+                    const hw = (w / 2) - 0.2;
+                    railPoints.push(new THREE.Vector3(side * hw, 0.7, z));
+                }
+                const railCurve = new THREE.CatmullRomCurve3(railPoints);
+                const railGeo = new THREE.TubeGeometry(railCurve, numSegments, 0.08, 8, false);
+                const railMesh = new THREE.Mesh(railGeo, steelMaterial);
+                flyoverGroup.add(railMesh);
+            });
+
+            // Update Coordinates Table (0m to Transition Length)
             updateCoordinatesTable(transLen, w1, w2);
 
-            // Default camera view setup
             setCameraView('oblique');
         }
 

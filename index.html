@@ -6,20 +6,23 @@
     <title>Mira Bhayandar Flyover Visualizer</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { overflow: hidden; background-color: #87ceeb; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: #87ceeb; }
+
+        /* Canvas styling to ensure 3D view renders correctly */
+        canvas { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
         #title-bar {
             position: absolute; top: 10px; width: 100%; text-align: center;
             font-size: 24px; font-weight: bold; color: #111; text-shadow: 0 1px 2px rgba(255,255,255,0.8);
-            z-index: 10; pointer-events: none;
+            z-index: 100; pointer-events: none;
         }
 
         /* Control Panel (Right) */
         #ui-panel {
             position: absolute; top: 15px; right: 15px; width: 280px;
-            background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
-            padding: 16px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 10; max-height: calc(100vh - 50px); overflow-y: auto;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+            padding: 16px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 100; max-height: calc(100vh - 50px); overflow-y: auto;
         }
         .panel-section { margin-bottom: 12px; }
         .panel-section label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px; }
@@ -41,7 +44,7 @@
         /* Coordinates Display List */
         #coords-box {
             margin-top: 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px;
-            padding: 10px; font-family: monospace; font-size: 11px; max-height: 180px; overflow-y: auto; color: #212529;
+            padding: 10px; font-family: monospace; font-size: 11px; max-height: 160px; overflow-y: auto; color: #212529;
         }
         #coords-box ul { list-style: none; }
         #coords-box li { padding: 3px 0; border-bottom: 1px dashed #dee2e6; }
@@ -50,7 +53,7 @@
         #footer {
             position: absolute; bottom: 8px; width: 100%; text-align: center;
             font-size: 13px; font-weight: bold; letter-spacing: 1px; color: #111;
-            text-shadow: 0 1px 2px rgba(255,255,255,0.9); z-index: 10; pointer-events: none;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.9); z-index: 100; pointer-events: none;
         }
     </style>
 
@@ -98,7 +101,7 @@
             <button class="view-btn" onclick="setCameraView('side')">Side View</button>
         </div>
 
-        <div style="margin-top:15px; font-size:12px; font-weight:bold; color:#333;">Transition Coordinates</div>
+        <div style="margin-top:15px; font-size:12px; font-weight:bold; color:#333;">Transition Coordinates (0m to End)</div>
         <div id="coords-box">
             <ul id="coords-list"></ul>
         </div>
@@ -108,162 +111,76 @@
 
     <script>
         // --- 1. Procedural Asphalt Texture Generator ---
-        function createAsphaltTextures() {
+        function createAsphaltTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1024;
+            canvas.width = 512;
+            canvas.height = 512;
             const ctx = canvas.getContext('2d');
 
-            // Dark Charcoal Base
             ctx.fillStyle = '#222426';
-            ctx.fillRect(0, 0, 1024, 1024);
+            ctx.fillRect(0, 0, 512, 512);
 
-            // Fine Aggregate Noise & Color Variation
-            const imgData = ctx.getImageData(0, 0, 1024, 1024);
+            const imgData = ctx.getImageData(0, 0, 512, 512);
             const data = imgData.data;
             for (let i = 0; i < data.length; i += 4) {
-                const noise = (Math.random() - 0.5) * 35;
+                const noise = (Math.random() - 0.5) * 30;
                 data[i] = Math.min(255, Math.max(0, data[i] + noise));
                 data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
                 data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise));
             }
             ctx.putImageData(imgData, 0, 0);
 
-            // Subtle tyre wear marks
-            ctx.fillStyle = 'rgba(15, 15, 15, 0.15)';
-            for (let i = 0; i < 20; i++) {
-                ctx.fillRect(Math.random() * 1024, 0, 15 + Math.random() * 30, 1024);
-            }
-
-            // Fine Cracks
-            ctx.strokeStyle = 'rgba(10, 10, 10, 0.4)';
-            ctx.lineWidth = 1.5;
-            for (let c = 0; c < 15; c++) {
-                ctx.beginPath();
-                let x = Math.random() * 1024;
-                let y = Math.random() * 1024;
-                ctx.moveTo(x, y);
-                for (let seg = 0; seg < 8; seg++) {
-                    x += (Math.random() - 0.5) * 60;
-                    y += (Math.random() - 0.5) * 60;
-                    ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-
-            const albedoTexture = new THREE.CanvasTexture(canvas);
-            albedoTexture.wrapS = THREE.RepeatWrapping;
-            albedoTexture.wrapT = THREE.RepeatWrapping;
-            albedoTexture.repeat.set(4, 30);
-
-            return albedoTexture;
-        }
-
-        // --- 2. Concrete Texture Generator ---
-        function createConcreteTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#b0b3b5';
-            ctx.fillRect(0, 0, 512, 512);
-
-            const imgData = ctx.getImageData(0, 0, 512, 512);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                const noise = (Math.random() - 0.5) * 20;
-                data[i] += noise; data[i+1] += noise; data[i+2] += noise;
-            }
-            ctx.putImageData(imgData, 0, 0);
-
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 40);
             return texture;
         }
 
-        // --- 3. Scene, Camera & Lighting Setup ---
+        // --- 2. Scene, Camera & Lighting Setup ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x9bd0f5);
-        scene.fog = new THREE.FogExp2(0x9bd0f5, 0.0008);
+        scene.background = new THREE.Color(0x87ceeb);
 
-        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.2, 3000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.1;
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.01;
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        sunLight.position.set(200, 300, 150);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        sunLight.position.set(150, 300, 100);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 10;
-        sunLight.shadow.camera.far = 1200;
-        const d = 400;
-        sunLight.shadow.camera.left = -d;
-        sunLight.shadow.camera.right = d;
-        sunLight.shadow.camera.top = d;
-        sunLight.shadow.camera.bottom = -d;
         scene.add(sunLight);
 
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.4);
-        scene.add(hemiLight);
-
-        // Ground/Terrain below flyover
-        const groundGeo = new THREE.PlaneGeometry(3000, 3000);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x6e8b3d, roughness: 0.9 });
+        // Ground below
+        const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x5b8a3e, roughness: 0.9 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -22;
-        ground.receiveShadow = true;
+        ground.position.y = -20;
         scene.add(ground);
 
-        // Materials
-        const asphaltTex = createAsphaltTextures();
-        const concreteTex = createConcreteTexture();
-
-        const roadMaterial = new THREE.MeshStandardMaterial({
-            map: asphaltTex,
-            roughness: 0.8,
-            metalness: 0.1
-        });
-
-        const concreteMaterial = new THREE.MeshStandardMaterial({
-            map: concreteTex,
-            color: 0xc4c7c9,
-            roughness: 0.7
-        });
-
-        const steelMaterial = new THREE.MeshStandardMaterial({
-            color: 0x90989e,
-            metalness: 0.85,
-            roughness: 0.25
-        });
-
-        const whitePaintMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const yellowPaintMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+        const asphaltTex = createAsphaltTexture();
+        const roadMaterial = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.8 });
+        const concreteMaterial = new THREE.MeshStandardMaterial({ color: 0xb0b3b5, roughness: 0.7 });
+        const steelMaterial = new THREE.MeshStandardMaterial({ color: 0x889098, metalness: 0.8, roughness: 0.3 });
+        const whitePaint = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const yellowPaint = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
 
         let flyoverGroup = new THREE.Group();
         scene.add(flyoverGroup);
 
-        // --- 4. Main Model Generator ---
+        // --- 3. Generate 3D Flyover Model ---
         function generateFlyoverModel() {
-            // UI inputs
             const totalLen = parseFloat(document.getElementById('totalLength').value);
             const transLen = parseFloat(document.getElementById('transLength').value);
             const w1 = parseFloat(document.getElementById('startWidth').value);
@@ -272,14 +189,12 @@
             document.getElementById('lbl-total').innerText = totalLen + 'm';
             document.getElementById('lbl-trans').innerText = transLen + 'm';
 
-            // Clear old model
             scene.remove(flyoverGroup);
             flyoverGroup = new THREE.Group();
 
             const s1Len = (totalLen - transLen) / 2;
             const s2Len = s1Len + transLen;
 
-            // Width function along Z axis
             function getWidthAtZ(z) {
                 if (z < s1Len) return w1;
                 if (z > s2Len) return w2;
@@ -287,14 +202,11 @@
                 return w1 + (w2 - w1) * ratio;
             }
 
-            const numSegments = Math.ceil(totalLen / 2); // 2-meter resolution
+            const numSegments = Math.ceil(totalLen / 4);
             const zStep = totalLen / numSegments;
 
-            // --- A. Road Deck Geometry ---
-            const positions = [];
-            const uvs = [];
-            const indices = [];
-
+            // Road Deck
+            const positions = [], uvs = [], indices = [];
             for (let i = 0; i <= numSegments; i++) {
                 const z = i * zStep;
                 const w = getWidthAtZ(z);
@@ -302,15 +214,13 @@
 
                 positions.push(-hw, 0, z);
                 positions.push(hw, 0, z);
-
                 uvs.push(0, z / 10);
                 uvs.push(1, z / 10);
 
                 if (i < numSegments) {
-                    const row1 = i * 2;
-                    const row2 = (i + 1) * 2;
-                    indices.push(row1, row1 + 1, row2);
-                    indices.push(row1 + 1, row2 + 1, row2);
+                    const r1 = i * 2, r2 = (i + 1) * 2;
+                    indices.push(r1, r1 + 1, r2);
+                    indices.push(r1 + 1, r2 + 1, r2);
                 }
             }
 
@@ -321,194 +231,82 @@
             roadGeo.computeVertexNormals();
 
             const roadMesh = new THREE.Mesh(roadGeo, roadMaterial);
-            roadMesh.receiveShadow = true;
-            roadMesh.castShadow = true;
             flyoverGroup.add(roadMesh);
 
-            // --- B. Concrete Deck Underside & Structural Beams ---
-            const deckThickness = 1.2;
-            const soffitPositions = [];
-            const soffitIndices = [];
-
-            for (let i = 0; i <= numSegments; i++) {
-                const z = i * zStep;
-                const w = getWidthAtZ(z);
-                const hw = w / 2;
-
-                soffitPositions.push(-hw + 0.3, -deckThickness, z);
-                soffitPositions.push(hw - 0.3, -deckThickness, z);
-
-                if (i < numSegments) {
-                    const r1 = i * 2;
-                    const r2 = (i + 1) * 2;
-                    soffitIndices.push(r1, r2, r1 + 1);
-                    soffitIndices.push(r1 + 1, r2, r2 + 1);
-                }
-            }
-            const soffitGeo = new THREE.BufferGeometry();
-            soffitGeo.setAttribute('position', new THREE.Float32BufferAttribute(soffitPositions, 3));
-            soffitGeo.setIndex(soffitIndices);
-            soffitGeo.computeVertexNormals();
-            const soffitMesh = new THREE.Mesh(soffitGeo, concreteMaterial);
-            soffitMesh.castShadow = true;
-            soffitMesh.receiveShadow = true;
-            flyoverGroup.add(soffitMesh);
-
-            // --- C. Concrete Support Piers & Foundations ---
-            const pierSpacing = 35; // Pillars every 35m
-            for (let z = 15; z < totalLen; z += pierSpacing) {
+            // Piers & Pillars
+            for (let z = 20; z < totalLen; z += 40) {
                 const w = getWidthAtZ(z);
                 const pierGroup = new THREE.Group();
                 pierGroup.position.set(0, 0, z);
 
-                // Pier Cap
-                const capGeo = new THREE.BoxGeometry(w * 0.85, 1.5, 3.5);
-                const cap = new THREE.Mesh(capGeo, concreteMaterial);
-                cap.position.y = -deckThickness - 0.75;
-                cap.castShadow = true;
-                cap.receiveShadow = true;
+                const cap = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, 1.2, 3), concreteMaterial);
+                cap.position.y = -1.6;
                 pierGroup.add(cap);
 
-                // Twin Concrete Columns
-                const colHeight = 18;
-                const colGeo = new THREE.CylinderGeometry(1.2, 1.4, colHeight, 16);
-                const colOffset = Math.min(w * 0.25, 4);
-
+                const colGeo = new THREE.CylinderGeometry(1, 1.2, 16, 12);
                 const col1 = new THREE.Mesh(colGeo, concreteMaterial);
-                col1.position.set(-colOffset, -deckThickness - 1.5 - colHeight / 2, 0);
-                col1.castShadow = true;
-                col1.receiveShadow = true;
+                col1.position.set(-w * 0.2, -10, 0);
                 pierGroup.add(col1);
 
                 const col2 = new THREE.Mesh(colGeo, concreteMaterial);
-                col2.position.set(colOffset, -deckThickness - 1.5 - colHeight / 2, 0);
-                col2.castShadow = true;
-                col2.receiveShadow = true;
+                col2.position.set(w * 0.2, -10, 0);
                 pierGroup.add(col2);
-
-                // Substantial Foundation Block
-                const fdnGeo = new THREE.BoxGeometry(colOffset * 2 + 5, 2.5, 6);
-                const fdn = new THREE.Mesh(fdnGeo, concreteMaterial);
-                fdn.position.y = -22 + 1.25;
-                fdn.castShadow = true;
-                fdn.receiveShadow = true;
-                pierGroup.add(fdn);
 
                 flyoverGroup.add(pierGroup);
             }
 
-            // --- D. Continuous Railings, Edges & Median ---
-            const postSpacing = 4;
-            const medianBlockLen = 3;
-
+            // Markings, Medians & Guardrails
             for (let i = 0; i <= numSegments; i++) {
                 const z = i * zStep;
                 const w = getWidthAtZ(z);
                 const hw = w / 2;
 
-                // 1. Concrete Edge Curb & Steel Guardrails
-                if (i % 2 === 0) { // Every 4 meters
-                    [-hw, hw].forEach((xSide) => {
-                        const isLeft = xSide < 0;
-                        const postGeo = new THREE.BoxGeometry(0.15, 0.9, 0.15);
-                        const post = new THREE.Mesh(postGeo, steelMaterial);
-                        post.position.set(xSide + (isLeft ? 0.2 : -0.2), 0.45, z);
-                        post.castShadow = true;
-                        flyoverGroup.add(post);
-                    });
-                }
-
-                // 2. Black & White Painted Central Concrete Median
+                // Center Median
                 if (i % 2 === 0 && i < numSegments) {
-                    const medianGeo = new THREE.BoxGeometry(0.8, 0.45, zStep * 2);
-                    const isWhite = Math.floor(z / 3) % 2 === 0;
-                    const medianMat = isWhite ? whitePaintMaterial : new THREE.MeshBasicMaterial({ color: 0x111111 });
-                    const median = new THREE.Mesh(medianGeo, medianMat);
-                    median.position.set(0, 0.225, z + zStep);
-                    median.castShadow = true;
+                    const median = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, zStep * 2), whitePaint);
+                    median.position.set(0, 0.2, z + zStep);
                     flyoverGroup.add(median);
                 }
 
-                // 3. Yellow Edge Line Markings
-                const yellowGeo = new THREE.PlaneGeometry(0.15, zStep + 0.05);
-                
-                const yLeft = new THREE.Mesh(yellowGeo, yellowPaintMaterial);
-                yLeft.rotation.x = -Math.PI / 2;
-                yLeft.position.set(-hw + 0.6, 0.01, z);
-                flyoverGroup.add(yLeft);
+                // Yellow edge lines
+                const yGeo = new THREE.PlaneGeometry(0.12, zStep);
+                const y1 = new THREE.Mesh(yGeo, yellowPaint);
+                y1.rotation.x = -Math.PI / 2;
+                y1.position.set(-hw + 0.5, 0.01, z);
+                flyoverGroup.add(y1);
 
-                const yRight = new THREE.Mesh(yellowGeo, yellowPaintMaterial);
-                yRight.rotation.x = -Math.PI / 2;
-                yRight.position.set(hw - 0.6, 0.01, z);
-                flyoverGroup.add(yRight);
-
-                // 4. White Dashed Lane Markings
-                const lanesVal = document.getElementById('lanes').value;
-                const lanesCount = parseInt(lanesVal.charAt(0)) || 4; // 4 or 6 lanes total
-                const halfLanes = lanesCount / 2;
-
-                if ((Math.floor(z) % 12) < 6) { // Dashed pattern (6m line, 6m gap)
-                    for (let l = 1; l < halfLanes; l++) {
-                        const laneOffsetLeft = (-hw + 0.6) + (l * ((hw - 1.0) / halfLanes));
-                        const laneOffsetRight = (0.6) + (l * ((hw - 1.0) / halfLanes));
-
-                        const dashGeo = new THREE.PlaneGeometry(0.12, zStep + 0.05);
-
-                        const dash1 = new THREE.Mesh(dashGeo, whitePaintMaterial);
-                        dash1.rotation.x = -Math.PI / 2;
-                        dash1.position.set(laneOffsetLeft, 0.01, z);
-                        flyoverGroup.add(dash1);
-
-                        const dash2 = new THREE.Mesh(dashGeo, whitePaintMaterial);
-                        dash2.rotation.x = -Math.PI / 2;
-                        dash2.position.set(laneOffsetRight, 0.01, z);
-                        flyoverGroup.add(dash2);
-                    }
-                }
+                const y2 = new THREE.Mesh(yGeo, yellowPaint);
+                y2.rotation.x = -Math.PI / 2;
+                y2.position.set(hw - 0.5, 0.01, z);
+                flyoverGroup.add(y2);
             }
 
-            // Continuous W-Beam Guardrail Bars
-            [-1, 1].forEach((side) => {
-                const railPoints = [];
-                for (let i = 0; i <= numSegments; i++) {
-                    const z = i * zStep;
-                    const w = getWidthAtZ(z);
-                    const hw = (w / 2) - 0.2;
-                    railPoints.push(new THREE.Vector3(side * hw, 0.7, z));
-                }
-                const railCurve = new THREE.CatmullRomCurve3(railPoints);
-                const railGeo = new THREE.TubeGeometry(railCurve, numSegments, 0.08, 8, false);
-                const railMesh = new THREE.Mesh(railGeo, steelMaterial);
-                railMesh.castShadow = true;
-                flyoverGroup.add(railMesh);
-            });
+            // Update transition coordinates panel (0m to transLen)
+            updateCoordinatesTable(transLen, w1, w2);
 
-            // Update Transition Coordinates Table
-            updateCoordinatesTable(s1Len, transLen, w1, w2);
-
-            // Default Camera Focus
+            // Default camera view setup
             setCameraView('oblique');
         }
 
-        // --- 5. Transition Coordinates Calculation ---
-        function updateCoordinatesTable(startZ, transLen, w1, w2) {
+        // --- 4. Transition Coordinates Table ---
+        function updateCoordinatesTable(transLen, w1, w2) {
             const list = document.getElementById('coords-list');
             list.innerHTML = '';
 
             for (let dist = 0; dist <= transLen; dist += 20) {
                 const currentWidth = w1 - ((w1 - w2) * (dist / transLen));
                 const li = document.createElement('li');
-                li.innerHTML = `<span><strong>${dist}m</strong>: (${dist}, ${currentWidth.toFixed(1)}m)</span>`;
+                li.innerHTML = `<span><strong>${dist}m</strong>: (${dist}, ${currentWidth.toFixed(1)})</span>`;
                 list.appendChild(li);
             }
             if (transLen % 20 !== 0) {
                 const li = document.createElement('li');
-                li.innerHTML = `<span><strong>${transLen}m</strong>: (${transLen}, ${w2.toFixed(1)}m)</span>`;
+                li.innerHTML = `<span><strong>${transLen}m</strong>: (${transLen}, ${w2.toFixed(1)})</span>`;
                 list.appendChild(li);
             }
         }
 
-        // --- 6. Camera Views Controls ---
+        // --- 5. Camera View Presets ---
         function setCameraView(viewType) {
             document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
 
@@ -517,26 +315,25 @@
             const startZ = (totalLen - transLen) / 2;
 
             if (viewType === 'oblique') {
-                camera.position.set(-28, 12, startZ - 15);
-                controls.target.set(0, 0, startZ + 40);
+                camera.position.set(-35, 25, startZ - 20);
+                controls.target.set(0, 0, startZ + 50);
                 event?.target?.classList.add('active');
             } else if (viewType === 'driver') {
-                camera.position.set(-2.5, 1.4, startZ - 10);
-                controls.target.set(-1.5, 1.2, startZ + 80);
+                camera.position.set(0, 2, startZ - 5);
+                controls.target.set(0, 2, startZ + 60);
                 event?.target?.classList.add('active');
             } else if (viewType === 'top') {
-                camera.position.set(0, 120, startZ + transLen / 2);
+                camera.position.set(0, 150, startZ + transLen / 2);
                 controls.target.set(0, 0, startZ + transLen / 2);
                 event?.target?.classList.add('active');
             } else if (viewType === 'side') {
-                camera.position.set(-150, 10, startZ + transLen / 2);
-                controls.target.set(0, -5, startZ + transLen / 2);
+                camera.position.set(-180, 15, startZ + transLen / 2);
+                controls.target.set(0, 0, startZ + transLen / 2);
                 event?.target?.classList.add('active');
             }
             controls.update();
         }
 
-        // --- 7. Animation Loop & Resize Listener ---
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -549,7 +346,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Initialize model on page load
         generateFlyoverModel();
         animate();
     </script>
